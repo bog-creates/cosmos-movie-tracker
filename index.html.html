@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stub — movie viewing log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg-0: #070a16;
+    --text: #eef1fb;
+    --text-soft: #9aa3c4;
+    --text-muted: #656d8f;
+    --surface: linear-gradient(160deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018));
+    --surface-solid: #10142a;
+    --border: rgba(120,150,220,0.14);
+    --border-strong: rgba(150,180,240,0.24);
+    --accent-1: #1e40af;
+    --accent-2: #3b82f6;
+    --accent-grad: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+    --accent-soft: rgba(59, 130, 246, 0.16);
+    --gold: #c9a24b;
+    --gold-strong: #e0bf72;
+    --gold-soft: rgba(201, 162, 75, 0.14);
+    --danger: #f472b6;
+    --danger-strong: #ec4899;
+    --radius-lg: 22px;
+    --radius-md: 14px;
+    --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(circle at 12% -10%, rgba(37,99,235,0.24), transparent 45%),
+      radial-gradient(circle at 90% 8%, rgba(201,162,75,0.08), transparent 40%),
+      radial-gradient(circle at 50% 100%, rgba(30,64,175,0.16), transparent 50%),
+      var(--bg-0);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 48px 20px 100px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 40px; }
+  .marquee {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 48px;
+    letter-spacing: -1px;
+    color: var(--text);
+    line-height: 1.1;
+    margin: 0;
+  }
+  .marquee span {
+    background: var(--accent-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .tagline {
+    color: var(--text-muted);
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    margin-top: 8px;
+  }
+
+  .add-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .add-card-head h2 { margin: 0; }
+  .lock-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .lock-controls button {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    white-space: nowrap;
+  }
+  .lock-controls button:hover { color: var(--gold); }
+  .lock-controls button.lock-remove { color: var(--danger); }
+  .lock-controls button.lock-remove:hover { color: var(--danger-strong); }
+  .lock-status {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--gold);
+    white-space: nowrap;
+  }
+  .lock-screen { display: none; }
+  .lock-message {
+    font-size: 13px;
+    color: var(--text-soft);
+    margin: 0 0 14px;
+    line-height: 1.5;
+  }
+  .lock-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .lock-row input {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .lock-row input:focus {
+    outline: none;
+    border-color: var(--accent-2);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .lock-row button.lock-submit {
+    background: var(--accent-grad);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0 18px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .lock-row button.lock-cancel {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+    border-radius: var(--radius-sm);
+    padding: 0 16px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .lock-error {
+    font-size: 12px;
+    color: var(--danger);
+    margin: 0;
+    min-height: 16px;
+  }
+  .lock-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin: 10px 0 0;
+    line-height: 1.5;
+  }
+
+  .add-card {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px 24px 22px;
+    margin-bottom: 32px;
+    box-shadow: 0 24px 48px -24px rgba(0,0,0,0.6);
+    backdrop-filter: blur(20px);
+  }
+  .add-card h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: -0.2px;
+    margin: 0 0 18px;
+    color: var(--text);
+  }
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .field input, .field select {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 11px 13px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .field input::placeholder { color: var(--text-muted); }
+  .field input:focus, .field select:focus {
+    outline: none;
+    border-color: var(--accent-2);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .field select option,
+  .edit-row select option {
+    background: var(--surface-solid);
+    color: var(--text);
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .row-3 { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 480px) {
+    .row-3 { grid-template-columns: 1fr; }
+  }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    height: 6px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-radius: 999px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background: transparent;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid var(--bg-0);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.25);
+    cursor: pointer;
+    margin-top: -6px;
+  }
+  input[type="range"]::-moz-range-thumb {
+    box-sizing: border-box;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--bg-0);
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.25);
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--fill, rgba(255,255,255,0.08));
+  }
+  .slider-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--accent-2);
+    min-width: 42px;
+    text-align: right;
+  }
+
+  .stub-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .stub-score {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+
+  .stub-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.2px;
+    color: var(--text-soft);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+  }
+  .stub-tag-rewatch {
+    color: var(--gold-strong);
+    background: var(--gold-soft);
+    border: 1px solid rgba(201,162,75,0.3);
+  }
+
+  .edit-score-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .edit-score-row input[type="range"] { flex: 1; }
+  .edit-score-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--accent-2);
+    min-width: 38px;
+    text-align: right;
+  }
+
+  .btn-add {
+    width: 100%;
+    background: var(--accent-grad);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 13px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.1s ease;
+  }
+  .btn-add:hover { filter: brightness(1.12); }
+  .btn-add:active { transform: scale(0.99); }
+
+  .stats-card {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 22px 24px 8px;
+    margin-bottom: 32px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px 24px;
+    box-shadow: 0 24px 48px -24px rgba(0,0,0,0.55);
+    backdrop-filter: blur(20px);
+  }
+  @media (max-width: 480px) {
+    .stats-card { grid-template-columns: 1fr; }
+  }
+  .stats-col-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .stats-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.2px;
+    margin: 0;
+    color: var(--gold);
+  }
+  .stat-row {
+    display: grid;
+    grid-template-columns: 16px 1fr;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .stat-rank {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: right;
+  }
+  .stat-body { min-width: 0; }
+  .stat-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .stat-name {
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .stat-count {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+  .stat-rewatch {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0.8;
+  }
+  .stat-bar-track {
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .stat-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+  }
+  .stats-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding-bottom: 12px;
+  }
+  .stats-expand-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    color: var(--gold);
+  }
+  .stats-expand-btn:hover { color: var(--gold-strong); }
+  .stats-expand-btn .expand-chevron {
+    display: inline-block;
+    font-size: 16px;
+    transition: transform 0.15s ease;
+  }
+  .stats-expand-btn.expanded .expand-chevron { transform: rotate(180deg); }
+
+  .stub.editing {
+    display: block;
+    padding: 20px 20px 18px;
+  }
+  .stub.editing .edit-movie {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+  .stub.editing .edit-movie:focus {
+    outline: none;
+    border-color: var(--accent-2);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .edit-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .edit-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 480px) {
+    .edit-row-3 { grid-template-columns: 1fr; }
+  }
+  .edit-row select {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .edit-actions { display: flex; gap: 16px; }
+  .edit-actions button {
+    border: none;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    background: transparent;
+  }
+  .save-btn { color: var(--accent-2); }
+  .save-btn:hover { color: var(--accent-1); }
+  .cancel-edit-btn { color: var(--text-muted); }
+  .cancel-edit-btn:hover { color: var(--text); }
+
+  .count-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+    padding: 0 4px;
+  }
+  .count-row .label {
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .count-row .num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    background: var(--accent-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .stub {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 16px;
+    overflow: hidden;
+    box-shadow: 0 16px 32px -20px rgba(0,0,0,0.55);
+    backdrop-filter: blur(20px);
+    transition: border-color 0.15s ease;
+  }
+  .stub:hover { border-color: var(--border-strong); }
+  .stub-main { padding: 18px 18px 16px 20px; }
+  .stub-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: -0.2px;
+    line-height: 1.2;
+    margin: 0 0 8px;
+    color: var(--text);
+  }
+  .stub-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-soft);
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .stub-date {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+
+  .stub-tear {
+    position: relative;
+    width: 56px;
+    background: var(--accent-grad);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .stub-vert {
+    writing-mode: vertical-rl;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.85);
+  }
+
+  .stub-actions {
+    display: flex;
+    gap: 14px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .stub-actions button {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .stub-actions .edit-btn { color: var(--text-soft); }
+  .stub-actions .edit-btn:hover { color: var(--accent-2); }
+  .stub-actions .del-btn { color: var(--danger); }
+  .stub-actions .del-btn:hover { color: var(--danger-strong); }
+  .move-btn {
+    text-decoration: none !important;
+    color: var(--text-muted);
+    font-size: 10px !important;
+  }
+  .move-btn:hover:not(:disabled) { color: var(--gold); }
+  .move-btn:disabled {
+    color: rgba(255,255,255,0.08);
+    cursor: default;
+  }
+
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+  }
+  .empty .marquee-small {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: -0.2px;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .empty p { font-size: 13px; margin: 0; }
+
+  .year-group { margin-bottom: 8px; }
+  .year-head {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    padding: 0 4px 10px;
+    margin: 32px 0 14px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+  }
+  .year-group:first-of-type .year-head { margin-top: 0; }
+  .year-head-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: -0.2px;
+    color: var(--text);
+  }
+  .chevron {
+    display: inline-block;
+    font-size: 11px;
+    color: var(--accent-2);
+    transition: transform 0.15s ease;
+  }
+  .chevron.collapsed { transform: rotate(-90deg); }
+  .year-count {
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    color: var(--text-muted);
+  }
+  .year-body.closed { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="add-card">
+    <div class="add-card-head">
+      <h2 id="formTitle">ADD A VIEWING</h2>
+      <div class="lock-controls" id="lockControls"></div>
+    </div>
+
+    <div class="lock-screen" id="lockScreen"></div>
+
+    <div id="addFormContent">
+      <div class="field">
+        <label for="movie">Movie</label>
+        <input type="text" id="movie" placeholder="The name of the film" autocomplete="off">
+      </div>
+      <div class="row row-3">
+        <div class="field">
+          <label for="theatre">Theatre</label>
+          <select id="theatre">
+            <option value="" selected disabled>Select</option>
+            <option value="Mississauga">Mississauga</option>
+            <option value="Queensway">Queensway</option>
+            <option value="Scotiabank">Scotiabank</option>
+            <option value="Vaughan">Vaughan</option>
+            <option value="Yorkdale">Yorkdale</option>
+            <option value="Yonge-Dundas">Yonge-Dundas</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="year">Year</label>
+          <select id="year"></select>
+        </div>
+        <div class="field">
+          <label for="experience">Experience</label>
+          <select id="experience">
+            <option value="" selected disabled>Select</option>
+            <option value="Regular">Regular</option>
+            <option value="IMAX">IMAX</option>
+            <option value="IMAX 70mm">IMAX 70mm</option>
+            <option value="VIP">VIP</option>
+            <option value="D-Box">D-Box</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="scoreSlider">Score</label>
+        <div class="slider-row">
+          <input type="range" id="scoreSlider" min="0" max="100" step="1" value="0">
+          <span class="slider-value" id="scoreValue">0%</span>
+        </div>
+      </div>
+      <button class="btn-add" id="addBtn">+ LOG VIEWING</button>
+    </div>
+  </div>
+
+  <div class="count-row">
+    <span class="label">Your screenings</span>
+    <span class="num" id="countNum">0</span>
+  </div>
+
+  <div class="stats-card" id="statsCard">
+    <div class="stats-col">
+      <div class="stats-col-head">
+        <h3 class="stats-title">By year</h3>
+        <button class="stats-expand-btn" id="yearExpandBtn" data-stats-toggle="year"><span class="expand-chevron">&#9662;</span></button>
+      </div>
+      <div id="yearStats"></div>
+    </div>
+    <div class="stats-col">
+      <div class="stats-col-head">
+        <h3 class="stats-title">By theatre</h3>
+        <button class="stats-expand-btn" id="theatreExpandBtn" data-stats-toggle="theatre"><span class="expand-chevron">&#9662;</span></button>
+      </div>
+      <div id="theatreStats"></div>
+    </div>
+    <div class="stats-col">
+      <div class="stats-col-head">
+        <h3 class="stats-title">By experience</h3>
+        <button class="stats-expand-btn" id="experienceExpandBtn" data-stats-toggle="experience"><span class="expand-chevron">&#9662;</span></button>
+      </div>
+      <div id="experienceStats"></div>
+    </div>
+    <div class="stats-col">
+      <div class="stats-col-head">
+        <h3 class="stats-title">Top ranked</h3>
+        <button class="stats-expand-btn" id="topRankedExpandBtn" data-stats-toggle="topRanked"><span class="expand-chevron">&#9662;</span></button>
+      </div>
+      <div id="topRankedStats"></div>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+</div>
+
+<script>
+  const THEATRE_COLORS = {
+    "Mississauga": "#38bdf8",
+    "Queensway": "#60a5fa",
+    "Scotiabank": "#818cf8",
+    "Vaughan": "#a78bfa",
+    "Yorkdale": "#c084fc",
+    "Yonge-Dundas": "#e879f9"
+  };
+
+  const EXPERIENCE_COLORS = {
+    "Regular": "#818cf8",
+    "IMAX": "#a855f7",
+    "IMAX 70mm": "#c9a24b",
+    "VIP": "#e879f9",
+    "D-Box": "#38bdf8"
+  };
+
+  const STORAGE_KEY = "viewings";
+  let viewings = [];
+
+  const listEl = document.getElementById("list");
+  const lockControlsEl = document.getElementById("lockControls");
+  const lockScreenEl = document.getElementById("lockScreen");
+  const addFormContentEl = document.getElementById("addFormContent");
+  const countEl = document.getElementById("countNum");
+  const statsCard = document.getElementById("statsCard");
+  const yearStatsEl = document.getElementById("yearStats");
+  const theatreStatsEl = document.getElementById("theatreStats");
+  const experienceStatsEl = document.getElementById("experienceStats");
+  const topRankedStatsEl = document.getElementById("topRankedStats");
+  const yearExpandBtn = document.getElementById("yearExpandBtn");
+  const theatreExpandBtn = document.getElementById("theatreExpandBtn");
+  const experienceExpandBtn = document.getElementById("experienceExpandBtn");
+  const topRankedExpandBtn = document.getElementById("topRankedExpandBtn");
+  const movieInput = document.getElementById("movie");
+  const theatreSelect = document.getElementById("theatre");
+  const yearSelect = document.getElementById("year");
+  const experienceSelect = document.getElementById("experience");
+  const addBtn = document.getElementById("addBtn");
+  const scoreSlider = document.getElementById("scoreSlider");
+  const scoreValueEl = document.getElementById("scoreValue");
+
+  let editingId = null;
+  let currentRating = 0;
+  let collapsedYears = new Set();
+  let expandedStats = new Set();
+
+  scoreSlider.addEventListener("input", () => {
+    currentRating = parseInt(scoreSlider.value, 10);
+    scoreValueEl.textContent = currentRating + "%";
+    applySliderFill(scoreSlider, currentRating);
+  });
+  applySliderFill(scoreSlider, 0);
+
+  const START_YEAR = 2018;
+  const currentYear = new Date().getFullYear();
+  const yearPlaceholder = document.createElement("option");
+  yearPlaceholder.value = "";
+  yearPlaceholder.textContent = "Select";
+  yearPlaceholder.selected = true;
+  yearPlaceholder.disabled = true;
+  yearSelect.appendChild(yearPlaceholder);
+  for (let y = currentYear; y >= START_YEAR; y--) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y;
+    yearSelect.appendChild(opt);
+  }
+
+  function theatreOptionsHtml(selected) {
+    return Object.keys(THEATRE_COLORS).map((t) =>
+      `<option value="${t}" ${t === selected ? "selected" : ""}>${t}</option>`
+    ).join("");
+  }
+
+  function yearOptionsHtml(selected) {
+    let html = "";
+    for (let y = currentYear; y >= START_YEAR; y--) {
+      html += `<option value="${y}" ${y === selected ? "selected" : ""}>${y}</option>`;
+    }
+    return html;
+  }
+
+  function experienceOptionsHtml(selected) {
+    return Object.keys(EXPERIENCE_COLORS).map((exp) =>
+      `<option value="${exp}" ${exp === selected ? "selected" : ""}>${exp}</option>`
+    ).join("");
+  }
+
+  function rowToViewing(row) {
+    return {
+      id: row.id,
+      movie: row.movie,
+      theatre: row.theatre,
+      year: row.year,
+      experience: row.experience,
+      rating: row.rating,
+      order: row.sort_order
+    };
+  }
+
+  async function loadViewings() {
+    try {
+      const { data, error } = await sb.from("viewings").select("*");
+      if (error) throw error;
+      viewings = (data || []).map(rowToViewing);
+    } catch (e) {
+      console.error("Could not load viewings", e);
+      viewings = [];
+    }
+
+    if (viewings.length === 0) {
+      await maybeImportLocalViewings();
+    }
+
+    render();
+  }
+
+  async function maybeImportLocalViewings() {
+    if (!session) return;
+    let localViewings = [];
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      localViewings = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      localViewings = [];
+    }
+    if (!localViewings.length) return;
+    const proceed = confirm(`Found ${localViewings.length} viewing(s) saved in this browser from before switching to cloud sync. Import them now?`);
+    if (!proceed) return;
+    const rows = localViewings.map((v) => ({
+      id: v.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+      movie: v.movie,
+      theatre: v.theatre,
+      year: v.year,
+      experience: v.experience || "Regular",
+      rating: v.rating || 0,
+      sort_order: v.order || Date.now()
+    }));
+    try {
+      const { error } = await sb.from("viewings").insert(rows);
+      if (error) throw error;
+      viewings = rows.map(rowToViewing);
+    } catch (e) {
+      alert("Import failed: " + e.message);
+    }
+  }
+
+  const SUPABASE_URL = "https://yxgvcsugprwbmzoobpkg.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4Z3Zjc3VncHJ3Ym16b29icGtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3NTA3MTksImV4cCI6MjEwMTMyNjcxOX0.PbJXsU6lY_FppK6Qf4vghEXjPAmFE-QalC4T6XcNzXo";
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let session = null;
+
+  function canEdit() {
+    return !!session;
+  }
+
+  function renderLockControls() {
+    if (session) {
+      lockControlsEl.innerHTML = `
+        <span class="lock-status">Signed in as ${escapeHtml(session.user.email)}</span>
+        <button id="signOutBtn">Sign out</button>`;
+    } else {
+      lockControlsEl.innerHTML = `<span class="lock-status">🔒 Locked</span>`;
+    }
+  }
+
+  function renderLockPanel() {
+    if (session) {
+      lockScreenEl.innerHTML = "";
+      return;
+    }
+    lockScreenEl.innerHTML = `
+      <p class="lock-message">🔒 This log is locked. Sign in to add, edit, delete, or reorder viewings.</p>
+      <div class="lock-row">
+        <input type="email" id="loginEmail" placeholder="Email" autocomplete="username">
+      </div>
+      <div class="lock-row">
+        <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+        <button class="lock-submit" id="loginSubmitBtn">Sign in</button>
+      </div>
+      <p class="lock-error" id="lockErrorMsg"></p>`;
+
+    const submitBtn = document.getElementById("loginSubmitBtn");
+    const errorEl = document.getElementById("lockErrorMsg");
+
+    submitBtn.addEventListener("click", async () => {
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value;
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Signing in...";
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Sign in";
+      if (error) errorEl.textContent = error.message;
+    });
+
+    lockScreenEl.querySelectorAll("input").forEach((inp) => {
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") submitBtn.click();
+      });
+    });
+  }
+
+  function refreshLockUI(rerenderList) {
+    renderLockControls();
+    renderLockPanel();
+    const showPanel = !session;
+    lockScreenEl.style.display = showPanel ? "block" : "none";
+    addFormContentEl.style.display = showPanel ? "none" : "block";
+    if (rerenderList) render();
+  }
+
+  lockControlsEl.addEventListener("click", async (e) => {
+    if (e.target.id === "signOutBtn") {
+      await sb.auth.signOut();
+    }
+  });
+
+  sb.auth.onAuthStateChange((event, newSession) => {
+    session = newSession;
+    refreshLockUI(true);
+  });
+
+  function escapeHtml(s) {
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function escapeAttr(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function scoreColor(score) {
+    const clamped = Math.max(0, Math.min(100, score));
+    const hue = (clamped / 100) * 120; // 0 = red, 60 = yellow, 120 = green
+    return {
+      bg: `hsla(${hue}, 75%, 50%, 0.16)`,
+      text: `hsl(${hue}, 80%, 60%)`
+    };
+  }
+
+  function scoreBadgeHtml(score) {
+    const c = scoreColor(score);
+    return `<div class="stub-score" style="background:${c.bg}; color:${c.text}">${score}%</div>`;
+  }
+
+  function sliderHue(value) {
+    return (Math.max(0, Math.min(100, value)) / 100) * 120;
+  }
+
+  function sliderTrackBackground(value) {
+    const hue = sliderHue(value);
+    const color = `hsl(${hue}, 80%, 50%)`;
+    return `linear-gradient(to right, ${color} 0%, ${color} ${value}%, rgba(255,255,255,0.1) ${value}%, rgba(255,255,255,0.1) 100%)`;
+  }
+
+  function applySliderFill(el, value) {
+    const bg = sliderTrackBackground(value);
+    el.style.background = bg;
+    el.style.setProperty("--fill", bg);
+  }
+
+  function ordinal(n) {
+    const rem100 = n % 100;
+    if (rem100 >= 11 && rem100 <= 13) return n + "th";
+    switch (n % 10) {
+      case 1: return n + "st";
+      case 2: return n + "nd";
+      case 3: return n + "rd";
+      default: return n + "th";
+    }
+  }
+
+  function computeWatchNumbers() {
+    const groups = {};
+    viewings.forEach((v) => {
+      if (!groups[v.movie]) groups[v.movie] = [];
+      groups[v.movie].push(v);
+    });
+    const map = {};
+    Object.values(groups).forEach((group) => {
+      group.sort((a, b) => a.year - b.year || a.id.localeCompare(b.id));
+      group.forEach((v, i) => { map[v.id] = i + 1; });
+    });
+    return map;
+  }
+
+  function renderViewStub(v, watchNumber, isFirst, isLast) {
+    const color = THEATRE_COLORS[v.theatre] || "#999";
+    const rewatchLabel = watchNumber > 1 ? (watchNumber <= 3 ? `${ordinal(watchNumber)} watch` : "Rewatch") : null;
+    return `
+      <div class="stub" data-id="${v.id}">
+        <div class="stub-main">
+          <h3 class="stub-title">${escapeHtml(v.movie)}</h3>
+          <div class="stub-meta">
+            <span class="dot" style="background:${color}"></span>
+            <span>${escapeHtml(v.theatre)}</span>
+          </div>
+          <div class="stub-date">${v.year}</div>
+          <div class="stub-badges">
+            ${scoreBadgeHtml(v.rating || 0)}
+            <span class="stub-tag">${escapeHtml(v.experience || "Regular")}</span>
+            ${rewatchLabel ? `<span class="stub-tag stub-tag-rewatch">${rewatchLabel}</span>` : ""}
+          </div>
+          ${canEdit() ? `
+          <div class="stub-actions">
+            <button class="move-btn" data-move-up="${v.id}" title="Move up" ${isFirst ? "disabled" : ""}>&#9650;</button>
+            <button class="move-btn" data-move-down="${v.id}" title="Move down" ${isLast ? "disabled" : ""}>&#9660;</button>
+            <button class="edit-btn" data-edit="${v.id}">Edit</button>
+            <button class="del-btn" data-del="${v.id}">Delete</button>
+          </div>` : ""}
+        </div>
+        <div class="stub-tear">
+          <span class="stub-vert">ADMIT ONE</span>
+        </div>
+      </div>`;
+  }
+
+  function renderEditStub(v) {
+    return `
+      <div class="stub editing" data-id="${v.id}">
+        <input type="text" class="edit-movie" value="${escapeAttr(v.movie)}" placeholder="The name of the film">
+        <div class="edit-row edit-row-3">
+          <select class="edit-theatre">${theatreOptionsHtml(v.theatre)}</select>
+          <select class="edit-year">${yearOptionsHtml(v.year)}</select>
+          <select class="edit-experience">${experienceOptionsHtml(v.experience || "Regular")}</select>
+        </div>
+        <div class="edit-score-row">
+          <input type="range" class="edit-score" min="0" max="100" step="1" value="${v.rating || 0}" style="background:${sliderTrackBackground(v.rating || 0)}; --fill:${sliderTrackBackground(v.rating || 0)}">
+          <span class="edit-score-value">${v.rating || 0}%</span>
+        </div>
+        <div class="edit-actions">
+          <button class="save-btn" data-save="${v.id}">Save</button>
+          <button class="cancel-edit-btn" data-cancel="${v.id}">Cancel</button>
+        </div>
+      </div>`;
+  }
+
+  function statRowsArray(counts, barColor) {
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const max = entries.length ? entries[0][1] : 1;
+    return entries.map(([name, count], i) => `
+      <div class="stat-row">
+        <span class="stat-rank">${i + 1}</span>
+        <div class="stat-body">
+          <div class="stat-label-row">
+            <span class="stat-name">${escapeHtml(name)}</span>
+            <span class="stat-count">${count}</span>
+          </div>
+          <div class="stat-bar-track">
+            <div class="stat-bar-fill" style="width:${(count / max) * 100}%; background:${typeof barColor === "function" ? barColor(name) : barColor}"></div>
+          </div>
+        </div>
+      </div>`);
+  }
+
+  function topRankedRowsArray(list) {
+    return list.map((v, i) => `
+      <div class="stat-row">
+        <span class="stat-rank">${i + 1}</span>
+        <div class="stat-body">
+          <div class="stat-label-row">
+            <span class="stat-name">${escapeHtml(v.movie)}</span>
+            <span class="stat-count">${v.rating}%${v.count > 1 ? ` <span class="stat-rewatch">×${v.count}</span>` : ""}</span>
+          </div>
+          <div class="stat-bar-track">
+            <div class="stat-bar-fill" style="width:${v.rating}%; background:var(--accent-grad)"></div>
+          </div>
+        </div>
+      </div>`);
+  }
+
+  function sliceRows(rows, key) {
+    return expandedStats.has(key) ? rows : rows.slice(0, 5);
+  }
+
+  function updateExpandBtn(btn, key, total) {
+    if (total > 5) {
+      btn.style.display = "inline-flex";
+      btn.classList.toggle("expanded", expandedStats.has(key));
+    } else {
+      btn.style.display = "none";
+    }
+  }
+
+  function renderStats() {
+    if (viewings.length === 0) {
+      statsCard.style.display = "none";
+      return;
+    }
+    statsCard.style.display = "grid";
+
+    const yearCounts = {};
+    const theatreCounts = {};
+    const experienceCounts = {};
+    viewings.forEach((v) => {
+      yearCounts[v.year] = (yearCounts[v.year] || 0) + 1;
+      theatreCounts[v.theatre] = (theatreCounts[v.theatre] || 0) + 1;
+      experienceCounts[v.experience || "Regular"] = (experienceCounts[v.experience || "Regular"] || 0) + 1;
+    });
+
+    const yearRows = statRowsArray(yearCounts, "var(--accent-grad)");
+    yearStatsEl.innerHTML = sliceRows(yearRows, "year").join("");
+    updateExpandBtn(yearExpandBtn, "year", yearRows.length);
+
+    const theatreRows = statRowsArray(theatreCounts, (name) => THEATRE_COLORS[name] || "#999");
+    theatreStatsEl.innerHTML = sliceRows(theatreRows, "theatre").join("");
+    updateExpandBtn(theatreExpandBtn, "theatre", theatreRows.length);
+
+    const experienceRows = statRowsArray(experienceCounts, (name) => EXPERIENCE_COLORS[name] || "#999");
+    experienceStatsEl.innerHTML = sliceRows(experienceRows, "experience").join("");
+    updateExpandBtn(experienceExpandBtn, "experience", experienceRows.length);
+
+    const movieGroups = {};
+    viewings.forEach((v) => {
+      if (!movieGroups[v.movie]) {
+        movieGroups[v.movie] = { movie: v.movie, total: 0, count: 0, latestYear: v.year };
+      }
+      const g = movieGroups[v.movie];
+      g.total += (v.rating || 0);
+      g.count += 1;
+      if (v.year > g.latestYear) g.latestYear = v.year;
+    });
+
+    const topRanked = Object.values(movieGroups)
+      .map((g) => ({ movie: g.movie, rating: Math.round(g.total / g.count), count: g.count, latestYear: g.latestYear }))
+      .sort((a, b) => b.rating - a.rating || b.count - a.count || b.latestYear - a.latestYear);
+    const topRankedRows = topRankedRowsArray(topRanked);
+    topRankedStatsEl.innerHTML = sliceRows(topRankedRows, "topRanked").join("");
+    updateExpandBtn(topRankedExpandBtn, "topRanked", topRankedRows.length);
+  }
+
+  function render() {
+    countEl.textContent = viewings.length;
+    renderStats();
+
+    if (viewings.length === 0) {
+      listEl.innerHTML = `
+        <div class="empty">
+          <div class="marquee-small">THE HOUSE IS EMPTY</div>
+          <p>Log your first viewing above to start the reel.</p>
+        </div>`;
+      return;
+    }
+
+    const watchNumbers = computeWatchNumbers();
+    const sorted = [...viewings].sort((a, b) => b.year - a.year || b.order - a.order);
+    const groups = [];
+    sorted.forEach((v) => {
+      let group = groups[groups.length - 1];
+      if (!group || group.year !== v.year) {
+        group = { year: v.year, items: [] };
+        groups.push(group);
+      }
+      group.items.push(v);
+    });
+
+    const html = groups.map((group) => {
+      const closed = collapsedYears.has(String(group.year));
+      const stubsHtml = group.items.map((v, idx) =>
+        v.id === editingId
+          ? renderEditStub(v)
+          : renderViewStub(v, watchNumbers[v.id], idx === 0, idx === group.items.length - 1)
+      ).join("");
+      return `
+        <div class="year-group">
+          <button class="year-head" data-year-toggle="${group.year}">
+            <span class="year-head-left">
+              <span class="chevron ${closed ? "collapsed" : ""}">&#9662;</span>
+              ${group.year}
+            </span>
+            <span class="year-count">${group.items.length} ${group.items.length === 1 ? "screening" : "screenings"}</span>
+          </button>
+          <div class="year-body ${closed ? "closed" : ""}">${stubsHtml}</div>
+        </div>`;
+    }).join("");
+
+    listEl.innerHTML = html;
+  }
+
+  function resetForm() {
+    movieInput.value = "";
+    yearSelect.selectedIndex = 0;
+    theatreSelect.selectedIndex = 0;
+    experienceSelect.selectedIndex = 0;
+    currentRating = 0;
+    scoreSlider.value = 0;
+    scoreValueEl.textContent = "0%";
+    applySliderFill(scoreSlider, 0);
+  }
+
+  function flashInvalid(el) {
+    el.style.borderColor = "var(--danger)";
+    setTimeout(() => { el.style.borderColor = ""; }, 900);
+  }
+
+  async function addViewing() {
+    if (!canEdit()) return;
+    const movie = movieInput.value.trim();
+    const theatre = theatreSelect.value;
+    const year = parseInt(yearSelect.value, 10);
+    const experience = experienceSelect.value;
+
+    if (!movie) {
+      movieInput.focus();
+      flashInvalid(movieInput);
+      return;
+    }
+    if (!theatre) {
+      theatreSelect.focus();
+      flashInvalid(theatreSelect);
+      return;
+    }
+    if (!yearSelect.value) {
+      yearSelect.focus();
+      flashInvalid(yearSelect);
+      return;
+    }
+    if (!experience) {
+      experienceSelect.focus();
+      flashInvalid(experienceSelect);
+      return;
+    }
+
+    const newViewing = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      movie,
+      theatre,
+      year,
+      experience,
+      rating: currentRating,
+      order: Date.now()
+    };
+
+    viewings.push(newViewing);
+    render();
+    resetForm();
+    movieInput.focus();
+
+    const { error } = await sb.from("viewings").insert({
+      id: newViewing.id,
+      movie: newViewing.movie,
+      theatre: newViewing.theatre,
+      year: newViewing.year,
+      experience: newViewing.experience,
+      rating: newViewing.rating,
+      sort_order: newViewing.order
+    });
+    if (error) {
+      viewings = viewings.filter((v) => v.id !== newViewing.id);
+      render();
+      alert("Could not save to the cloud: " + error.message);
+    }
+  }
+
+  async function deleteViewing(id) {
+    if (!canEdit()) return;
+    const removed = viewings.find((v) => v.id === id);
+    viewings = viewings.filter((v) => v.id !== id);
+    if (editingId === id) editingId = null;
+    render();
+
+    const { error } = await sb.from("viewings").delete().eq("id", id);
+    if (error) {
+      if (removed) viewings.push(removed);
+      render();
+      alert("Could not delete from the cloud: " + error.message);
+    }
+  }
+
+  async function moveViewing(id, direction) {
+    if (!canEdit()) return;
+    const v = viewings.find((x) => x.id === id);
+    if (!v) return;
+    const sameYear = viewings.filter((x) => x.year === v.year).sort((a, b) => b.order - a.order);
+    const idx = sameYear.findIndex((x) => x.id === id);
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sameYear.length) return;
+    const other = sameYear[swapIdx];
+    const tmp = v.order;
+    v.order = other.order;
+    other.order = tmp;
+    render();
+
+    const [r1, r2] = await Promise.all([
+      sb.from("viewings").update({ sort_order: v.order }).eq("id", v.id),
+      sb.from("viewings").update({ sort_order: other.order }).eq("id", other.id)
+    ]);
+    if (r1.error || r2.error) {
+      alert("Could not save the new order to the cloud.");
+    }
+  }
+
+  async function saveInlineEdit(id) {
+    if (!canEdit()) return;
+    const stub = listEl.querySelector(`.stub[data-id="${id}"]`);
+    if (!stub) return;
+    const movieField = stub.querySelector(".edit-movie");
+    const movie = movieField.value.trim();
+    const theatre = stub.querySelector(".edit-theatre").value;
+    const year = parseInt(stub.querySelector(".edit-year").value, 10);
+    const experience = stub.querySelector(".edit-experience").value;
+    const rating = parseInt(stub.querySelector(".edit-score").value, 10) || 0;
+
+    if (!movie) {
+      movieField.focus();
+      movieField.style.borderColor = "var(--danger)";
+      setTimeout(() => { movieField.style.borderColor = ""; }, 900);
+      return;
+    }
+
+    const v = viewings.find((x) => x.id === id);
+    if (v) {
+      v.movie = movie;
+      v.theatre = theatre;
+      v.year = year;
+      v.experience = experience;
+      v.rating = rating;
+    }
+
+    editingId = null;
+    render();
+
+    const { error } = await sb.from("viewings").update({ movie, theatre, year, experience, rating }).eq("id", id);
+    if (error) {
+      alert("Could not save changes to the cloud: " + error.message);
+    }
+  }
+
+  addBtn.addEventListener("click", addViewing);
+  movieInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") addViewing();
+  });
+
+  listEl.addEventListener("click", (e) => {
+    const yearToggle = e.target.closest("[data-year-toggle]");
+    if (yearToggle) {
+      const year = yearToggle.getAttribute("data-year-toggle");
+      const group = yearToggle.closest(".year-group");
+      const body = group.querySelector(".year-body");
+      const chevron = yearToggle.querySelector(".chevron");
+      const isClosed = body.classList.toggle("closed");
+      chevron.classList.toggle("collapsed", isClosed);
+      if (isClosed) collapsedYears.add(year);
+      else collapsedYears.delete(year);
+      return;
+    }
+    const editBtn = e.target.closest("[data-edit]");
+    if (editBtn) {
+      if (!canEdit()) return;
+      editingId = editBtn.getAttribute("data-edit");
+      render();
+      return;
+    }
+    const moveUpBtn = e.target.closest("[data-move-up]");
+    if (moveUpBtn && !moveUpBtn.disabled) {
+      moveViewing(moveUpBtn.getAttribute("data-move-up"), "up");
+      return;
+    }
+    const moveDownBtn = e.target.closest("[data-move-down]");
+    if (moveDownBtn && !moveDownBtn.disabled) {
+      moveViewing(moveDownBtn.getAttribute("data-move-down"), "down");
+      return;
+    }
+    const delBtn = e.target.closest("[data-del]");
+    if (delBtn) {
+      deleteViewing(delBtn.getAttribute("data-del"));
+      return;
+    }
+    const saveBtn = e.target.closest("[data-save]");
+    if (saveBtn) {
+      saveInlineEdit(saveBtn.getAttribute("data-save"));
+      return;
+    }
+    const cancelBtn = e.target.closest("[data-cancel]");
+    if (cancelBtn) {
+      editingId = null;
+      render();
+      return;
+    }
+  });
+
+  listEl.addEventListener("input", (e) => {
+    if (e.target.classList.contains("edit-score")) {
+      const valueEl = e.target.closest(".edit-score-row").querySelector(".edit-score-value");
+      valueEl.textContent = e.target.value + "%";
+      applySliderFill(e.target, parseInt(e.target.value, 10));
+    }
+  });
+
+  statsCard.addEventListener("click", (e) => {
+    const toggleBtn = e.target.closest("[data-stats-toggle]");
+    if (!toggleBtn) return;
+    const key = toggleBtn.getAttribute("data-stats-toggle");
+    if (expandedStats.has(key)) expandedStats.delete(key);
+    else expandedStats.add(key);
+    renderStats();
+  });
+
+  sb.channel("public:viewings")
+    .on("postgres_changes", { event: "*", schema: "public", table: "viewings" }, () => {
+      loadViewings();
+    })
+    .subscribe();
+
+  (async () => {
+    const { data } = await sb.auth.getSession();
+    session = data.session;
+    refreshLockUI(false);
+    await loadViewings();
+  })();
+</script>
+</body>
+</html>
