@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cosmos Movie Tracker</title>
+<title>Stub — movie viewing log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -554,7 +554,16 @@
     transition: border-color 0.15s ease;
   }
   .stub:hover { border-color: var(--border-strong); }
-  .stub-main { padding: 18px 18px 16px 20px; }
+  .stub-main { position: relative; overflow: hidden; padding: 18px 18px 16px 20px; }
+  .stub-poster {
+    position: absolute;
+    inset: 0;
+    background-size: cover, cover;
+    background-position: center, center 15%;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .stub-main-content { position: relative; z-index: 1; }
   .stub-title {
     font-family: 'Space Grotesk', sans-serif;
     font-weight: 600;
@@ -877,6 +886,70 @@
     ).join("");
   }
 
+  const POSTER_FUNCTION_URL = "https://yxgvcsugprwbmzoobpkg.supabase.co/functions/v1/get-poster";
+  const POSTER_CACHE_KEY = "posterCache";
+  let posterCache = {};
+
+  function loadPosterCache() {
+    try {
+      const raw = localStorage.getItem(POSTER_CACHE_KEY);
+      posterCache = raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      posterCache = {};
+    }
+  }
+
+  function savePosterCache() {
+    try {
+      localStorage.setItem(POSTER_CACHE_KEY, JSON.stringify(posterCache));
+    } catch (e) {}
+  }
+
+  function posterBgStyle(posterPath) {
+    const url = `https://image.tmdb.org/t/p/w342${posterPath}`;
+    return `background-image: linear-gradient(to right, rgba(6,9,20,0.94) 0%, rgba(10,18,45,0.82) 35%, rgba(15,35,90,0.68) 65%, rgba(15,35,90,0.55) 100%), url('${url}');`;
+  }
+
+  function applyKnownPosters() {
+    viewings.forEach((v) => {
+      const cacheKey = v.movie.trim().toLowerCase();
+      const posterPath = posterCache[cacheKey];
+      if (posterPath) {
+        const posterEl = listEl.querySelector(`.stub[data-id="${v.id}"] .stub-poster`);
+        if (posterEl) posterEl.setAttribute("style", posterBgStyle(posterPath));
+      }
+    });
+  }
+
+  async function fetchMissingPosters() {
+    const titles = [...new Set(viewings.map((v) => v.movie))];
+    for (const title of titles) {
+      const cacheKey = title.trim().toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(posterCache, cacheKey)) continue;
+      let posterPath = null;
+      try {
+        const res = await fetch(`${POSTER_FUNCTION_URL}?query=${encodeURIComponent(title)}`, {
+          headers: {
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            apikey: SUPABASE_ANON_KEY
+          }
+        });
+        const data = await res.json();
+        posterPath = data.poster_path || null;
+      } catch (e) {
+        posterPath = null;
+      }
+      posterCache[cacheKey] = posterPath;
+      savePosterCache();
+      if (posterPath) {
+        viewings.filter((v) => v.movie === title).forEach((v) => {
+          const posterEl = listEl.querySelector(`.stub[data-id="${v.id}"] .stub-poster`);
+          if (posterEl) posterEl.setAttribute("style", posterBgStyle(posterPath));
+        });
+      }
+    }
+  }
+
   function rowToViewing(row) {
     return {
       id: row.id,
@@ -1088,24 +1161,27 @@
     return `
       <div class="stub" data-id="${v.id}">
         <div class="stub-main">
-          <h3 class="stub-title">${escapeHtml(v.movie)}</h3>
-          <div class="stub-meta">
-            <span class="dot" style="background:${color}"></span>
-            <span>${escapeHtml(v.theatre)}</span>
+          <div class="stub-poster"></div>
+          <div class="stub-main-content">
+            <h3 class="stub-title">${escapeHtml(v.movie)}</h3>
+            <div class="stub-meta">
+              <span class="dot" style="background:${color}"></span>
+              <span>${escapeHtml(v.theatre)}</span>
+            </div>
+            <div class="stub-date">${v.year}</div>
+            <div class="stub-badges">
+              ${scoreBadgeHtml(v.rating || 0)}
+              <span class="stub-tag">${escapeHtml(v.experience || "Regular")}</span>
+              ${rewatchLabel ? `<span class="stub-tag stub-tag-rewatch">${rewatchLabel}</span>` : ""}
+            </div>
+            ${canEdit() ? `
+            <div class="stub-actions">
+              <button class="move-btn" data-move-up="${v.id}" title="Move up" ${isFirst ? "disabled" : ""}>&#9650;</button>
+              <button class="move-btn" data-move-down="${v.id}" title="Move down" ${isLast ? "disabled" : ""}>&#9660;</button>
+              <button class="edit-btn" data-edit="${v.id}">Edit</button>
+              <button class="del-btn" data-del="${v.id}">Delete</button>
+            </div>` : ""}
           </div>
-          <div class="stub-date">${v.year}</div>
-          <div class="stub-badges">
-            ${scoreBadgeHtml(v.rating || 0)}
-            <span class="stub-tag">${escapeHtml(v.experience || "Regular")}</span>
-            ${rewatchLabel ? `<span class="stub-tag stub-tag-rewatch">${rewatchLabel}</span>` : ""}
-          </div>
-          ${canEdit() ? `
-          <div class="stub-actions">
-            <button class="move-btn" data-move-up="${v.id}" title="Move up" ${isFirst ? "disabled" : ""}>&#9650;</button>
-            <button class="move-btn" data-move-down="${v.id}" title="Move down" ${isLast ? "disabled" : ""}>&#9660;</button>
-            <button class="edit-btn" data-edit="${v.id}">Edit</button>
-            <button class="del-btn" data-del="${v.id}">Delete</button>
-          </div>` : ""}
         </div>
         <div class="stub-tear">
           <span class="stub-vert">ADMIT ONE</span>
@@ -1273,6 +1349,8 @@
     }).join("");
 
     listEl.innerHTML = html;
+    applyKnownPosters();
+    fetchMissingPosters();
   }
 
   function resetForm() {
@@ -1501,6 +1579,7 @@
     .subscribe();
 
   (async () => {
+    loadPosterCache();
     const { data } = await sb.auth.getSession();
     session = data.session;
     refreshLockUI(false);
