@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cosmos - Bogdan's Movie Log</title>
+<title>Cosmos - Bog's Movie Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -354,6 +354,82 @@
   }
   .btn-add:hover { filter: brightness(1.12); }
   .btn-add:active { transform: scale(0.99); }
+
+  .filter-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px 18px;
+    margin-bottom: 24px;
+    box-shadow: 0 16px 32px -20px rgba(0,0,0,0.5);
+    backdrop-filter: blur(20px);
+  }
+  #searchInput {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 13px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+  #searchInput::placeholder { color: var(--text-muted); }
+  #searchInput:focus {
+    outline: none;
+    border-color: var(--accent-2);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .filter-row-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  @media (max-width: 560px) {
+    .filter-row-4 { grid-template-columns: 1fr 1fr; }
+  }
+  .filter-row-4 select {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 9px 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .filter-row-4 select option {
+    background: var(--surface-solid);
+    color: var(--text);
+  }
+  .filter-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    min-height: 16px;
+  }
+  .filter-results {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .filter-clear {
+    display: block;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--gold);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .filter-clear:hover { color: var(--gold-strong); }
 
   .stats-card {
     background: var(--surface);
@@ -796,6 +872,34 @@
     </div>
   </div>
 
+  <div class="filter-bar" id="filterBar">
+    <input type="text" id="searchInput" placeholder="Search by movie title..." autocomplete="off">
+    <div class="filter-row-4">
+      <select id="filterTheatreSelect">
+        <option value="">All theatres</option>
+      </select>
+      <select id="filterYearSelect">
+        <option value="">All years</option>
+      </select>
+      <select id="filterExperienceSelect">
+        <option value="">All experiences</option>
+      </select>
+      <select id="sortSelect">
+        <option value="manual">Manual order</option>
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="rating-high">Highest rated</option>
+        <option value="rating-low">Lowest rated</option>
+        <option value="az">Title A–Z</option>
+        <option value="za">Title Z–A</option>
+      </select>
+    </div>
+    <div class="filter-footer">
+      <span class="filter-results" id="filterResults"></span>
+      <button class="filter-clear" id="clearFiltersBtn" style="display:none;">Clear filters</button>
+    </div>
+  </div>
+
   <div id="list"></div>
 
 </div>
@@ -842,11 +946,23 @@
   const addBtn = document.getElementById("addBtn");
   const scoreSlider = document.getElementById("scoreSlider");
   const scoreValueEl = document.getElementById("scoreValue");
+  const searchInput = document.getElementById("searchInput");
+  const filterTheatreSelect = document.getElementById("filterTheatreSelect");
+  const filterYearSelect = document.getElementById("filterYearSelect");
+  const filterExperienceSelect = document.getElementById("filterExperienceSelect");
+  const sortSelect = document.getElementById("sortSelect");
+  const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+  const filterResultsEl = document.getElementById("filterResults");
 
   let editingId = null;
   let currentRating = 0;
   let collapsedYears = new Set();
   let expandedStats = new Set();
+  let filterSearch = "";
+  let filterTheatre = "";
+  let filterYear = "";
+  let filterExperience = "";
+  let sortMode = "manual";
 
   scoreSlider.addEventListener("input", () => {
     currentRating = parseInt(scoreSlider.value, 10);
@@ -869,6 +985,105 @@
     opt.textContent = y;
     yearSelect.appendChild(opt);
   }
+
+  Object.keys(THEATRE_COLORS).forEach((t) => {
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t;
+    filterTheatreSelect.appendChild(opt);
+  });
+  for (let y = currentYear; y >= START_YEAR; y--) {
+    const opt = document.createElement("option");
+    opt.value = y;
+    opt.textContent = y;
+    filterYearSelect.appendChild(opt);
+  }
+  Object.keys(EXPERIENCE_COLORS).forEach((exp) => {
+    const opt = document.createElement("option");
+    opt.value = exp;
+    opt.textContent = exp;
+    filterExperienceSelect.appendChild(opt);
+  });
+
+  function isFilterActive() {
+    return !!(filterSearch || filterTheatre || filterYear || filterExperience) || sortMode !== "manual";
+  }
+
+  function updateClearVisibility() {
+    clearFiltersBtn.style.display = isFilterActive() ? "block" : "none";
+  }
+
+  function getFilteredSortedViewings() {
+    const search = filterSearch.trim().toLowerCase();
+    let list = viewings.filter((v) => {
+      if (search && !v.movie.toLowerCase().includes(search)) return false;
+      if (filterTheatre && v.theatre !== filterTheatre) return false;
+      if (filterYear && String(v.year) !== filterYear) return false;
+      if (filterExperience && (v.experience || "Regular") !== filterExperience) return false;
+      return true;
+    });
+
+    switch (sortMode) {
+      case "oldest":
+        list.sort((a, b) => a.year - b.year || a.order - b.order);
+        break;
+      case "rating-high":
+        list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        break;
+      case "rating-low":
+        list.sort((a, b) => (a.rating || 0) - (b.rating || 0));
+        break;
+      case "az":
+        list.sort((a, b) => a.movie.localeCompare(b.movie));
+        break;
+      case "za":
+        list.sort((a, b) => b.movie.localeCompare(a.movie));
+        break;
+      default:
+        list.sort((a, b) => b.year - a.year || b.order - a.order);
+    }
+    return list;
+  }
+
+  searchInput.addEventListener("input", () => {
+    filterSearch = searchInput.value;
+    updateClearVisibility();
+    render();
+  });
+  filterTheatreSelect.addEventListener("change", () => {
+    filterTheatre = filterTheatreSelect.value;
+    updateClearVisibility();
+    render();
+  });
+  filterYearSelect.addEventListener("change", () => {
+    filterYear = filterYearSelect.value;
+    updateClearVisibility();
+    render();
+  });
+  filterExperienceSelect.addEventListener("change", () => {
+    filterExperience = filterExperienceSelect.value;
+    updateClearVisibility();
+    render();
+  });
+  sortSelect.addEventListener("change", () => {
+    sortMode = sortSelect.value;
+    updateClearVisibility();
+    render();
+  });
+  clearFiltersBtn.addEventListener("click", () => {
+    filterSearch = "";
+    filterTheatre = "";
+    filterYear = "";
+    filterExperience = "";
+    sortMode = "manual";
+    searchInput.value = "";
+    filterTheatreSelect.value = "";
+    filterYearSelect.value = "";
+    filterExperienceSelect.value = "";
+    sortSelect.value = "manual";
+    updateClearVisibility();
+    render();
+  });
 
   function theatreOptionsHtml(selected) {
     return Object.keys(THEATRE_COLORS).map((t) =>
@@ -1159,7 +1374,7 @@
     return map;
   }
 
-  function renderViewStub(v, watchNumber, isFirst, isLast) {
+  function renderViewStub(v, watchNumber, isFirst, isLast, showMove) {
     const color = THEATRE_COLORS[v.theatre] || "#999";
     const rewatchLabel = watchNumber > 1 ? (watchNumber <= 3 ? `${ordinal(watchNumber)} watch` : "Rewatch") : null;
     return `
@@ -1180,8 +1395,9 @@
             </div>
             ${canEdit() ? `
             <div class="stub-actions">
+              ${showMove ? `
               <button class="move-btn" data-move-up="${v.id}" title="Move up" ${isFirst ? "disabled" : ""}>&#9650;</button>
-              <button class="move-btn" data-move-down="${v.id}" title="Move down" ${isLast ? "disabled" : ""}>&#9660;</button>
+              <button class="move-btn" data-move-down="${v.id}" title="Move down" ${isLast ? "disabled" : ""}>&#9660;</button>` : ""}
               <button class="edit-btn" data-edit="${v.id}">Edit</button>
               <button class="del-btn" data-del="${v.id}">Delete</button>
             </div>` : ""}
@@ -1312,6 +1528,7 @@
     renderStats();
 
     if (viewings.length === 0) {
+      filterResultsEl.textContent = "";
       listEl.innerHTML = `
         <div class="empty">
           <div class="marquee-small">THE HOUSE IS EMPTY</div>
@@ -1321,6 +1538,32 @@
     }
 
     const watchNumbers = computeWatchNumbers();
+    const active = isFilterActive();
+
+    if (active) {
+      const filtered = getFilteredSortedViewings();
+      filterResultsEl.textContent = `${filtered.length} result${filtered.length === 1 ? "" : "s"}`;
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div class="empty">
+            <div class="marquee-small">NO MATCHES</div>
+            <p>Try adjusting your search or filters.</p>
+          </div>`;
+        return;
+      }
+      const html = filtered.map((v) =>
+        v.id === editingId
+          ? renderEditStub(v)
+          : renderViewStub(v, watchNumbers[v.id], true, true, false)
+      ).join("");
+      listEl.innerHTML = html;
+      applyKnownPosters();
+      fetchMissingPosters();
+      return;
+    }
+
+    filterResultsEl.textContent = "";
+
     const sorted = [...viewings].sort((a, b) => b.year - a.year || b.order - a.order);
     const groups = [];
     sorted.forEach((v) => {
@@ -1337,7 +1580,7 @@
       const stubsHtml = group.items.map((v, idx) =>
         v.id === editingId
           ? renderEditStub(v)
-          : renderViewStub(v, watchNumbers[v.id], idx === 0, idx === group.items.length - 1)
+          : renderViewStub(v, watchNumbers[v.id], idx === 0, idx === group.items.length - 1, true)
       ).join("");
       return `
         <div class="year-group">
