@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cosmos - Bogdan's Movie Tracker</title>
+<title>Stub — movie viewing log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -106,6 +106,9 @@
     color: var(--gold);
     white-space: nowrap;
   }
+  @media (max-width: 480px) {
+    .lock-status-email { display: none; }
+  }
   .lock-screen { display: none; }
   .lock-message {
     font-size: 13px;
@@ -116,6 +119,7 @@
   .lock-row { display: flex; gap: 8px; margin-bottom: 10px; }
   .lock-row input {
     flex: 1;
+    min-width: 0;
     background: rgba(255,255,255,0.04);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -1022,7 +1026,7 @@
   function renderLockControls() {
     if (session) {
       lockControlsEl.innerHTML = `
-        <span class="lock-status">Signed in as ${escapeHtml(session.user.email)}</span>
+        <span class="lock-status lock-status-email">Signed in as ${escapeHtml(session.user.email)}</span>
         <button id="signOutBtn">Sign out</button>`;
     } else {
       lockControlsEl.innerHTML = `<span class="lock-status">🔒 Locked</span>`;
