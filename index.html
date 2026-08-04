@@ -468,7 +468,15 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 12px;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 3px 4px;
+    margin-left: -4px;
+    margin-right: -4px;
+    transition: background 0.12s ease;
   }
+  .stat-row:hover { background: rgba(255,255,255,0.05); }
+  .stat-row:hover .stat-name { color: var(--gold); }
   .stat-rank {
     font-family: 'Space Grotesk', sans-serif;
     font-size: 13px;
@@ -953,6 +961,7 @@
   const sortSelect = document.getElementById("sortSelect");
   const clearFiltersBtn = document.getElementById("clearFiltersBtn");
   const filterResultsEl = document.getElementById("filterResults");
+  const filterBarEl = document.getElementById("filterBar");
 
   let editingId = null;
   let currentRating = 0;
@@ -1429,11 +1438,11 @@
       </div>`;
   }
 
-  function statRowsArray(counts, barColor) {
+  function statRowsArray(counts, barColor, filterType) {
     const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
     const max = entries.length ? entries[0][1] : 1;
     return entries.map(([name, count], i) => `
-      <div class="stat-row">
+      <div class="stat-row" data-filter-type="${filterType}" data-filter-value="${escapeAttr(name)}">
         <span class="stat-rank">${i + 1}</span>
         <div class="stat-body">
           <div class="stat-label-row">
@@ -1449,7 +1458,7 @@
 
   function topRankedRowsArray(list) {
     return list.map((v, i) => `
-      <div class="stat-row">
+      <div class="stat-row" data-filter-type="search" data-filter-value="${escapeAttr(v.movie)}">
         <span class="stat-rank">${i + 1}</span>
         <div class="stat-body">
           <div class="stat-label-row">
@@ -1492,15 +1501,15 @@
       experienceCounts[v.experience || "Regular"] = (experienceCounts[v.experience || "Regular"] || 0) + 1;
     });
 
-    const yearRows = statRowsArray(yearCounts, "var(--accent-grad)");
+    const yearRows = statRowsArray(yearCounts, "var(--accent-grad)", "year");
     yearStatsEl.innerHTML = sliceRows(yearRows, "year").join("");
     updateExpandBtn(yearExpandBtn, "year", yearRows.length);
 
-    const theatreRows = statRowsArray(theatreCounts, (name) => THEATRE_COLORS[name] || "#999");
+    const theatreRows = statRowsArray(theatreCounts, (name) => THEATRE_COLORS[name] || "#999", "theatre");
     theatreStatsEl.innerHTML = sliceRows(theatreRows, "theatre").join("");
     updateExpandBtn(theatreExpandBtn, "theatre", theatreRows.length);
 
-    const experienceRows = statRowsArray(experienceCounts, (name) => EXPERIENCE_COLORS[name] || "#999");
+    const experienceRows = statRowsArray(experienceCounts, (name) => EXPERIENCE_COLORS[name] || "#999", "experience");
     experienceStatsEl.innerHTML = sliceRows(experienceRows, "experience").join("");
     updateExpandBtn(experienceExpandBtn, "experience", experienceRows.length);
 
@@ -1812,12 +1821,52 @@
 
   statsCard.addEventListener("click", (e) => {
     const toggleBtn = e.target.closest("[data-stats-toggle]");
-    if (!toggleBtn) return;
-    const key = toggleBtn.getAttribute("data-stats-toggle");
-    if (expandedStats.has(key)) expandedStats.delete(key);
-    else expandedStats.add(key);
-    renderStats();
+    if (toggleBtn) {
+      const key = toggleBtn.getAttribute("data-stats-toggle");
+      if (expandedStats.has(key)) expandedStats.delete(key);
+      else expandedStats.add(key);
+      renderStats();
+      return;
+    }
+
+    const statRow = e.target.closest("[data-filter-type]");
+    if (statRow) {
+      const type = statRow.getAttribute("data-filter-type");
+      const value = statRow.getAttribute("data-filter-value");
+      applyStatFilter(type, value);
+    }
   });
+
+  function applyStatFilter(type, value) {
+    filterSearch = "";
+    filterTheatre = "";
+    filterYear = "";
+    filterExperience = "";
+    sortMode = "manual";
+    searchInput.value = "";
+    filterTheatreSelect.value = "";
+    filterYearSelect.value = "";
+    filterExperienceSelect.value = "";
+    sortSelect.value = "manual";
+
+    if (type === "year") {
+      filterYear = value;
+      filterYearSelect.value = value;
+    } else if (type === "theatre") {
+      filterTheatre = value;
+      filterTheatreSelect.value = value;
+    } else if (type === "experience") {
+      filterExperience = value;
+      filterExperienceSelect.value = value;
+    } else if (type === "search") {
+      filterSearch = value;
+      searchInput.value = value;
+    }
+
+    updateClearVisibility();
+    render();
+    filterBarEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   sb.channel("public:viewings")
     .on("postgres_changes", { event: "*", schema: "public", table: "viewings" }, () => {
