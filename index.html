@@ -332,6 +332,40 @@
     flex-wrap: wrap;
     gap: 8px;
   }
+  .chip-add-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .chip-add-row input {
+    flex: 1;
+    min-width: 0;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .chip-add-row input:focus {
+    outline: none;
+    border-color: var(--accent-2);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .chip-add-row button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+    border-radius: var(--radius-sm);
+    padding: 0 16px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .chip-add-row button:hover { border-color: var(--gold); color: var(--gold); }
   .chip-option {
     background: rgba(255,255,255,0.04);
     border: 1px solid var(--border);
@@ -887,6 +921,10 @@
       <div class="field">
         <label>Watched with</label>
         <div class="chip-picker" id="watchedWithPicker"></div>
+        <div class="chip-add-row">
+          <input type="text" id="newWatchedWithInput" placeholder="Add a new name..." autocomplete="off">
+          <button type="button" id="addWatchedWithBtn">+ Add</button>
+        </div>
       </div>
       <button class="btn-add" id="addBtn">+ LOG VIEWING</button>
     </div>
@@ -988,18 +1026,26 @@
     "D-Box": "#38bdf8"
   };
 
-  const WATCHED_WITH_OPTIONS = ["Jen", "Martin", "Malcolm", "Nick", "Prathab", "Max", "Friends", "Co-workers", "Alone"];
-  const WATCHED_WITH_COLORS = {
+  let WATCHED_WITH_OPTIONS = ["Jen", "Martin", "Malcolm", "Nick", "Prathab", "Max", "Alone"];
+  let WATCHED_WITH_COLORS = {
     "Jen": "#60a5fa",
     "Martin": "#818cf8",
     "Malcolm": "#a78bfa",
     "Nick": "#c084fc",
     "Prathab": "#e879f9",
     "Max": "#38bdf8",
-    "Friends": "#c9a24b",
-    "Co-workers": "#22d3ee",
     "Alone": "#8b8fa3"
   };
+  const WATCHED_WITH_PALETTE = ["#60a5fa", "#818cf8", "#a78bfa", "#c084fc", "#e879f9", "#38bdf8", "#22d3ee", "#c9a24b", "#f472b6", "#34d399"];
+
+  function colorForWatchedWithName(name) {
+    if (WATCHED_WITH_COLORS[name]) return WATCHED_WITH_COLORS[name];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    const color = WATCHED_WITH_PALETTE[hash % WATCHED_WITH_PALETTE.length];
+    WATCHED_WITH_COLORS[name] = color;
+    return color;
+  }
 
   const STORAGE_KEY = "viewings";
   let viewings = [];
@@ -1025,6 +1071,8 @@
   const yearSelect = document.getElementById("year");
   const experienceSelect = document.getElementById("experience");
   const watchedWithPickerEl = document.getElementById("watchedWithPicker");
+  const newWatchedWithInput = document.getElementById("newWatchedWithInput");
+  const addWatchedWithBtn = document.getElementById("addWatchedWithBtn");
   const addBtn = document.getElementById("addBtn");
   const scoreSlider = document.getElementById("scoreSlider");
   const scoreValueEl = document.getElementById("scoreValue");
@@ -1102,6 +1150,53 @@
       `<button type="button" class="chip-option ${selectedSet.has(name) ? "selected" : ""}" data-chip-value="${escapeAttr(name)}">${escapeHtml(name)}</button>`
     ).join("");
   }
+
+  function refreshWatchedWithFilterOptions() {
+    const current = filterWatchedWithSelect.value;
+    filterWatchedWithSelect.innerHTML = '<option value="">Watched with anyone</option>';
+    WATCHED_WITH_OPTIONS.forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      filterWatchedWithSelect.appendChild(opt);
+    });
+    filterWatchedWithSelect.value = current;
+  }
+
+  async function addNewWatchedWithName() {
+    const name = newWatchedWithInput.value.trim();
+    if (!name) return;
+    if (WATCHED_WITH_OPTIONS.some((n) => n.toLowerCase() === name.toLowerCase())) {
+      currentWatchedWith.add(WATCHED_WITH_OPTIONS.find((n) => n.toLowerCase() === name.toLowerCase()));
+      watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
+      newWatchedWithInput.value = "";
+      return;
+    }
+    if (!canEdit()) {
+      alert("Sign in to add a new name.");
+      return;
+    }
+    addWatchedWithBtn.disabled = true;
+    const { error } = await sb.from("watched_with_options").insert({ name });
+    addWatchedWithBtn.disabled = false;
+    if (error) {
+      alert("Could not save this name: " + error.message);
+      return;
+    }
+    WATCHED_WITH_OPTIONS.push(name);
+    currentWatchedWith.add(name);
+    watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
+    refreshWatchedWithFilterOptions();
+    newWatchedWithInput.value = "";
+  }
+
+  addWatchedWithBtn.addEventListener("click", addNewWatchedWithName);
+  newWatchedWithInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addNewWatchedWithName();
+    }
+  });
 
   watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
   watchedWithPickerEl.addEventListener("click", (e) => {
@@ -1634,7 +1729,7 @@
     experienceStatsEl.innerHTML = sliceRows(experienceRows, "experience").join("");
     updateExpandBtn(experienceExpandBtn, "experience", experienceRows.length);
 
-    const watchedWithRows = statRowsArray(watchedWithCounts, (name) => WATCHED_WITH_COLORS[name] || "#999", "watchedWith");
+    const watchedWithRows = statRowsArray(watchedWithCounts, (name) => colorForWatchedWithName(name), "watchedWith");
     watchedWithStatsEl.innerHTML = sliceRows(watchedWithRows, "watchedWith").join("");
     updateExpandBtn(watchedWithExpandBtn, "watchedWith", watchedWithRows.length);
 
@@ -2009,6 +2104,22 @@
     filterBarEl.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  async function loadCustomWatchedWithNames() {
+    try {
+      const { data, error } = await sb.from("watched_with_options").select("name");
+      if (error) throw error;
+      (data || []).forEach((row) => {
+        if (!WATCHED_WITH_OPTIONS.some((n) => n.toLowerCase() === row.name.toLowerCase())) {
+          WATCHED_WITH_OPTIONS.push(row.name);
+        }
+      });
+      watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
+      refreshWatchedWithFilterOptions();
+    } catch (e) {
+      console.error("Could not load custom watched-with names", e);
+    }
+  }
+
   sb.channel("public:viewings")
     .on("postgres_changes", { event: "*", schema: "public", table: "viewings" }, () => {
       loadViewings();
@@ -2020,6 +2131,7 @@
     const { data } = await sb.auth.getSession();
     session = data.session;
     refreshLockUI(false);
+    await loadCustomWatchedWithNames();
     await loadViewings();
   })();
 </script>
