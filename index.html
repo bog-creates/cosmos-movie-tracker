@@ -321,6 +321,45 @@
     background: var(--gold-soft);
     border: 1px solid rgba(201,162,75,0.3);
   }
+  .stub-tag-watched {
+    color: var(--accent-2);
+    background: var(--accent-soft);
+    border: 1px solid rgba(59,130,246,0.3);
+  }
+
+  .chip-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .chip-option {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-soft);
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+  .chip-option:hover { border-color: var(--border-strong); }
+  .chip-option.selected {
+    background: var(--accent-soft);
+    border-color: rgba(59,130,246,0.4);
+    color: var(--accent-2);
+  }
+  .edit-chip-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .edit-chip-picker .chip-option {
+    padding: 5px 11px;
+    font-size: 11px;
+  }
 
   .edit-score-row {
     display: flex;
@@ -386,8 +425,13 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
   }
+  .filter-row-5 { grid-template-columns: repeat(5, 1fr); }
+  @media (max-width: 700px) {
+    .filter-row-5 { grid-template-columns: 1fr 1fr 1fr; }
+  }
   @media (max-width: 560px) {
     .filter-row-4 { grid-template-columns: 1fr 1fr; }
+    .filter-row-5 { grid-template-columns: 1fr 1fr; }
   }
   .filter-row-4 select {
     width: 100%;
@@ -840,6 +884,10 @@
           <span class="slider-value" id="scoreValue">0%</span>
         </div>
       </div>
+      <div class="field">
+        <label>Watched with</label>
+        <div class="chip-picker" id="watchedWithPicker"></div>
+      </div>
       <button class="btn-add" id="addBtn">+ LOG VIEWING</button>
     </div>
   </div>
@@ -873,6 +921,13 @@
     </div>
     <div class="stats-col">
       <div class="stats-col-head">
+        <h3 class="stats-title">Watched with</h3>
+        <button class="stats-expand-btn" id="watchedWithExpandBtn" data-stats-toggle="watchedWith"><span class="expand-chevron">&#9662;</span></button>
+      </div>
+      <div id="watchedWithStats"></div>
+    </div>
+    <div class="stats-col">
+      <div class="stats-col-head">
         <h3 class="stats-title">Top ranked</h3>
         <button class="stats-expand-btn" id="topRankedExpandBtn" data-stats-toggle="topRanked"><span class="expand-chevron">&#9662;</span></button>
       </div>
@@ -882,7 +937,7 @@
 
   <div class="filter-bar" id="filterBar">
     <input type="text" id="searchInput" placeholder="Search by movie title..." autocomplete="off">
-    <div class="filter-row-4">
+    <div class="filter-row-4 filter-row-5">
       <select id="filterTheatreSelect">
         <option value="">All theatres</option>
       </select>
@@ -891,6 +946,9 @@
       </select>
       <select id="filterExperienceSelect">
         <option value="">All experiences</option>
+      </select>
+      <select id="filterWatchedWithSelect">
+        <option value="">Watched with anyone</option>
       </select>
       <select id="sortSelect">
         <option value="manual">Manual order</option>
@@ -930,6 +988,19 @@
     "D-Box": "#38bdf8"
   };
 
+  const WATCHED_WITH_OPTIONS = ["Jen", "Martin", "Malcolm", "Nick", "Prathab", "Max", "Friends", "Co-workers", "Alone"];
+  const WATCHED_WITH_COLORS = {
+    "Jen": "#60a5fa",
+    "Martin": "#818cf8",
+    "Malcolm": "#a78bfa",
+    "Nick": "#c084fc",
+    "Prathab": "#e879f9",
+    "Max": "#38bdf8",
+    "Friends": "#c9a24b",
+    "Co-workers": "#22d3ee",
+    "Alone": "#8b8fa3"
+  };
+
   const STORAGE_KEY = "viewings";
   let viewings = [];
 
@@ -942,15 +1013,18 @@
   const yearStatsEl = document.getElementById("yearStats");
   const theatreStatsEl = document.getElementById("theatreStats");
   const experienceStatsEl = document.getElementById("experienceStats");
+  const watchedWithStatsEl = document.getElementById("watchedWithStats");
   const topRankedStatsEl = document.getElementById("topRankedStats");
   const yearExpandBtn = document.getElementById("yearExpandBtn");
   const theatreExpandBtn = document.getElementById("theatreExpandBtn");
   const experienceExpandBtn = document.getElementById("experienceExpandBtn");
+  const watchedWithExpandBtn = document.getElementById("watchedWithExpandBtn");
   const topRankedExpandBtn = document.getElementById("topRankedExpandBtn");
   const movieInput = document.getElementById("movie");
   const theatreSelect = document.getElementById("theatre");
   const yearSelect = document.getElementById("year");
   const experienceSelect = document.getElementById("experience");
+  const watchedWithPickerEl = document.getElementById("watchedWithPicker");
   const addBtn = document.getElementById("addBtn");
   const scoreSlider = document.getElementById("scoreSlider");
   const scoreValueEl = document.getElementById("scoreValue");
@@ -958,6 +1032,7 @@
   const filterTheatreSelect = document.getElementById("filterTheatreSelect");
   const filterYearSelect = document.getElementById("filterYearSelect");
   const filterExperienceSelect = document.getElementById("filterExperienceSelect");
+  const filterWatchedWithSelect = document.getElementById("filterWatchedWithSelect");
   const sortSelect = document.getElementById("sortSelect");
   const clearFiltersBtn = document.getElementById("clearFiltersBtn");
   const filterResultsEl = document.getElementById("filterResults");
@@ -965,12 +1040,14 @@
 
   let editingId = null;
   let currentRating = 0;
+  let currentWatchedWith = new Set();
   let collapsedYears = new Set();
   let expandedStats = new Set();
   let filterSearch = "";
   let filterTheatre = "";
   let filterYear = "";
   let filterExperience = "";
+  let filterWatchedWith = "";
   let sortMode = "manual";
 
   scoreSlider.addEventListener("input", () => {
@@ -1013,9 +1090,31 @@
     opt.textContent = exp;
     filterExperienceSelect.appendChild(opt);
   });
+  WATCHED_WITH_OPTIONS.forEach((name) => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    filterWatchedWithSelect.appendChild(opt);
+  });
+
+  function watchedWithChipsHtml(selectedSet) {
+    return WATCHED_WITH_OPTIONS.map((name) =>
+      `<button type="button" class="chip-option ${selectedSet.has(name) ? "selected" : ""}" data-chip-value="${escapeAttr(name)}">${escapeHtml(name)}</button>`
+    ).join("");
+  }
+
+  watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
+  watchedWithPickerEl.addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip-option");
+    if (!chip) return;
+    const name = chip.getAttribute("data-chip-value");
+    if (currentWatchedWith.has(name)) currentWatchedWith.delete(name);
+    else currentWatchedWith.add(name);
+    chip.classList.toggle("selected", currentWatchedWith.has(name));
+  });
 
   function isFilterActive() {
-    return !!(filterSearch || filterTheatre || filterYear || filterExperience) || sortMode !== "manual";
+    return !!(filterSearch || filterTheatre || filterYear || filterExperience || filterWatchedWith) || sortMode !== "manual";
   }
 
   function updateClearVisibility() {
@@ -1029,6 +1128,7 @@
       if (filterTheatre && v.theatre !== filterTheatre) return false;
       if (filterYear && String(v.year) !== filterYear) return false;
       if (filterExperience && (v.experience || "Regular") !== filterExperience) return false;
+      if (filterWatchedWith && !(v.watchedWith || []).includes(filterWatchedWith)) return false;
       return true;
     });
 
@@ -1074,6 +1174,11 @@
     updateClearVisibility();
     render();
   });
+  filterWatchedWithSelect.addEventListener("change", () => {
+    filterWatchedWith = filterWatchedWithSelect.value;
+    updateClearVisibility();
+    render();
+  });
   sortSelect.addEventListener("change", () => {
     sortMode = sortSelect.value;
     updateClearVisibility();
@@ -1084,11 +1189,13 @@
     filterTheatre = "";
     filterYear = "";
     filterExperience = "";
+    filterWatchedWith = "";
     sortMode = "manual";
     searchInput.value = "";
     filterTheatreSelect.value = "";
     filterYearSelect.value = "";
     filterExperienceSelect.value = "";
+    filterWatchedWithSelect.value = "";
     sortSelect.value = "manual";
     updateClearVisibility();
     render();
@@ -1111,6 +1218,13 @@
   function experienceOptionsHtml(selected) {
     return Object.keys(EXPERIENCE_COLORS).map((exp) =>
       `<option value="${exp}" ${exp === selected ? "selected" : ""}>${exp}</option>`
+    ).join("");
+  }
+
+  function editWatchedWithChipsHtml(selectedList) {
+    const selectedSet = new Set(selectedList || []);
+    return WATCHED_WITH_OPTIONS.map((name) =>
+      `<button type="button" class="chip-option ${selectedSet.has(name) ? "selected" : ""}" data-chip-value="${escapeAttr(name)}">${escapeHtml(name)}</button>`
     ).join("");
   }
 
@@ -1186,7 +1300,8 @@
       year: row.year,
       experience: row.experience,
       rating: row.rating,
-      order: row.sort_order
+      order: row.sort_order,
+      watchedWith: row.watched_with || []
     };
   }
 
@@ -1401,6 +1516,7 @@
               ${scoreBadgeHtml(v.rating || 0)}
               <span class="stub-tag">${escapeHtml(v.experience || "Regular")}</span>
               ${rewatchLabel ? `<span class="stub-tag stub-tag-rewatch">${rewatchLabel}</span>` : ""}
+              ${v.watchedWith && v.watchedWith.length ? `<span class="stub-tag stub-tag-watched">👥 ${escapeHtml(v.watchedWith.join(", "))}</span>` : ""}
             </div>
             ${canEdit() ? `
             <div class="stub-actions">
@@ -1431,6 +1547,7 @@
           <input type="range" class="edit-score" min="0" max="100" step="1" value="${v.rating || 0}" style="background:${sliderTrackBackground(v.rating || 0)}; --fill:${sliderTrackBackground(v.rating || 0)}">
           <span class="edit-score-value">${v.rating || 0}%</span>
         </div>
+        <div class="edit-chip-picker edit-watched-with">${editWatchedWithChipsHtml(v.watchedWith)}</div>
         <div class="edit-actions">
           <button class="save-btn" data-save="${v.id}">Save</button>
           <button class="cancel-edit-btn" data-cancel="${v.id}">Cancel</button>
@@ -1495,10 +1612,14 @@
     const yearCounts = {};
     const theatreCounts = {};
     const experienceCounts = {};
+    const watchedWithCounts = {};
     viewings.forEach((v) => {
       yearCounts[v.year] = (yearCounts[v.year] || 0) + 1;
       theatreCounts[v.theatre] = (theatreCounts[v.theatre] || 0) + 1;
       experienceCounts[v.experience || "Regular"] = (experienceCounts[v.experience || "Regular"] || 0) + 1;
+      (v.watchedWith || []).forEach((name) => {
+        watchedWithCounts[name] = (watchedWithCounts[name] || 0) + 1;
+      });
     });
 
     const yearRows = statRowsArray(yearCounts, "var(--accent-grad)", "year");
@@ -1512,6 +1633,10 @@
     const experienceRows = statRowsArray(experienceCounts, (name) => EXPERIENCE_COLORS[name] || "#999", "experience");
     experienceStatsEl.innerHTML = sliceRows(experienceRows, "experience").join("");
     updateExpandBtn(experienceExpandBtn, "experience", experienceRows.length);
+
+    const watchedWithRows = statRowsArray(watchedWithCounts, (name) => WATCHED_WITH_COLORS[name] || "#999", "watchedWith");
+    watchedWithStatsEl.innerHTML = sliceRows(watchedWithRows, "watchedWith").join("");
+    updateExpandBtn(watchedWithExpandBtn, "watchedWith", watchedWithRows.length);
 
     const movieGroups = {};
     viewings.forEach((v) => {
@@ -1618,6 +1743,8 @@
     scoreSlider.value = 0;
     scoreValueEl.textContent = "0%";
     applySliderFill(scoreSlider, 0);
+    currentWatchedWith = new Set();
+    watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
   }
 
   function flashInvalid(el) {
@@ -1660,7 +1787,8 @@
       year,
       experience,
       rating: currentRating,
-      order: Date.now()
+      order: Date.now(),
+      watchedWith: [...currentWatchedWith]
     };
 
     viewings.push(newViewing);
@@ -1675,7 +1803,8 @@
       year: newViewing.year,
       experience: newViewing.experience,
       rating: newViewing.rating,
-      sort_order: newViewing.order
+      sort_order: newViewing.order,
+      watched_with: newViewing.watchedWith
     });
     if (error) {
       viewings = viewings.filter((v) => v.id !== newViewing.id);
@@ -1732,6 +1861,7 @@
     const year = parseInt(stub.querySelector(".edit-year").value, 10);
     const experience = stub.querySelector(".edit-experience").value;
     const rating = parseInt(stub.querySelector(".edit-score").value, 10) || 0;
+    const watchedWith = Array.from(stub.querySelectorAll(".edit-watched-with .chip-option.selected")).map((el) => el.getAttribute("data-chip-value"));
 
     if (!movie) {
       movieField.focus();
@@ -1747,12 +1877,13 @@
       v.year = year;
       v.experience = experience;
       v.rating = rating;
+      v.watchedWith = watchedWith;
     }
 
     editingId = null;
     render();
 
-    const { error } = await sb.from("viewings").update({ movie, theatre, year, experience, rating }).eq("id", id);
+    const { error } = await sb.from("viewings").update({ movie, theatre, year, experience, rating, watched_with: watchedWith }).eq("id", id);
     if (error) {
       alert("Could not save changes to the cloud: " + error.message);
     }
@@ -1764,6 +1895,11 @@
   });
 
   listEl.addEventListener("click", (e) => {
+    const chipOption = e.target.closest(".edit-watched-with .chip-option");
+    if (chipOption) {
+      chipOption.classList.toggle("selected");
+      return;
+    }
     const yearToggle = e.target.closest("[data-year-toggle]");
     if (yearToggle) {
       const year = yearToggle.getAttribute("data-year-toggle");
@@ -1842,11 +1978,13 @@
     filterTheatre = "";
     filterYear = "";
     filterExperience = "";
+    filterWatchedWith = "";
     sortMode = "manual";
     searchInput.value = "";
     filterTheatreSelect.value = "";
     filterYearSelect.value = "";
     filterExperienceSelect.value = "";
+    filterWatchedWithSelect.value = "";
     sortSelect.value = "manual";
 
     if (type === "year") {
@@ -1858,6 +1996,9 @@
     } else if (type === "experience") {
       filterExperience = value;
       filterExperienceSelect.value = value;
+    } else if (type === "watchedWith") {
+      filterWatchedWith = value;
+      filterWatchedWithSelect.value = value;
     } else if (type === "search") {
       filterSearch = value;
       searchInput.value = value;
