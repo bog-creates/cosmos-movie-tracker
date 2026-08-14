@@ -45,7 +45,7 @@
     min-height: 100vh;
     padding: 48px 20px 100px;
   }
-  .wrap { max-width: 640px; margin: 0 auto; }
+  .wrap { max-width: 860px; margin: 0 auto; }
 
   header { text-align: center; margin-bottom: 40px; }
   .marquee {
@@ -366,6 +366,65 @@
     white-space: nowrap;
   }
   .chip-add-row button:hover { border-color: var(--gold); color: var(--gold); }
+
+  #watchedWithPicker .chip-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 6px 5px 14px;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  #watchedWithPicker .chip-option:hover { border-color: var(--border-strong); }
+  #watchedWithPicker .chip-option.selected {
+    background: var(--accent-soft);
+    border-color: rgba(59,130,246,0.4);
+  }
+  #watchedWithPicker .chip-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-soft);
+    cursor: pointer;
+    user-select: none;
+  }
+  #watchedWithPicker .chip-option.selected .chip-label { color: var(--accent-2); }
+  .chip-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+  }
+  .chip-icon-btn:hover { background: rgba(255,255,255,0.08); color: var(--gold); }
+  .chip-icon-btn.chip-icon-danger:hover { background: rgba(244,114,182,0.15); color: var(--danger); }
+  .chip-icon-btn.chip-icon-accent:hover { background: var(--accent-soft); color: var(--accent-2); }
+  #watchedWithPicker .chip-option.chip-editing {
+    padding: 3px 4px 3px 4px;
+    border-color: var(--accent-2);
+  }
+  .chip-edit-input {
+    width: 100px;
+    background: rgba(255,255,255,0.06);
+    border: none;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .chip-edit-input:focus { outline: none; }
+
   .chip-option {
     background: rgba(255,255,255,0.04);
     border: 1px solid var(--border);
@@ -971,6 +1030,13 @@
       </div>
       <div id="topRankedStats"></div>
     </div>
+    <div class="stats-col">
+      <div class="stats-col-head">
+        <h3 class="stats-title">Lowest rated</h3>
+        <button class="stats-expand-btn" id="lowestRankedExpandBtn" data-stats-toggle="lowestRanked"><span class="expand-chevron">&#9662;</span></button>
+      </div>
+      <div id="lowestRankedStats"></div>
+    </div>
   </div>
 
   <div class="filter-bar" id="filterBar">
@@ -1061,11 +1127,13 @@
   const experienceStatsEl = document.getElementById("experienceStats");
   const watchedWithStatsEl = document.getElementById("watchedWithStats");
   const topRankedStatsEl = document.getElementById("topRankedStats");
+  const lowestRankedStatsEl = document.getElementById("lowestRankedStats");
   const yearExpandBtn = document.getElementById("yearExpandBtn");
   const theatreExpandBtn = document.getElementById("theatreExpandBtn");
   const experienceExpandBtn = document.getElementById("experienceExpandBtn");
   const watchedWithExpandBtn = document.getElementById("watchedWithExpandBtn");
   const topRankedExpandBtn = document.getElementById("topRankedExpandBtn");
+  const lowestRankedExpandBtn = document.getElementById("lowestRankedExpandBtn");
   const movieInput = document.getElementById("movie");
   const theatreSelect = document.getElementById("theatre");
   const yearSelect = document.getElementById("year");
@@ -1089,6 +1157,7 @@
   let editingId = null;
   let currentRating = 0;
   let currentWatchedWith = new Set();
+  let editingChipName = null;
   let collapsedYears = new Set();
   let expandedStats = new Set();
   let filterSearch = "";
@@ -1146,9 +1215,22 @@
   });
 
   function watchedWithChipsHtml(selectedSet) {
-    return WATCHED_WITH_OPTIONS.map((name) =>
-      `<button type="button" class="chip-option ${selectedSet.has(name) ? "selected" : ""}" data-chip-value="${escapeAttr(name)}">${escapeHtml(name)}</button>`
-    ).join("");
+    return WATCHED_WITH_OPTIONS.map((name) => {
+      if (name === editingChipName) {
+        return `
+          <div class="chip-option chip-editing" data-chip-value="${escapeAttr(name)}">
+            <input type="text" class="chip-edit-input" value="${escapeAttr(name)}">
+            <button type="button" class="chip-icon-btn chip-icon-accent" data-chip-save="${escapeAttr(name)}" title="Save">&#10003;</button>
+            <button type="button" class="chip-icon-btn" data-chip-cancel-edit="${escapeAttr(name)}" title="Cancel">&#10005;</button>
+          </div>`;
+      }
+      return `
+        <div class="chip-option ${selectedSet.has(name) ? "selected" : ""}" data-chip-value="${escapeAttr(name)}">
+          <span class="chip-label" data-chip-toggle="${escapeAttr(name)}">${escapeHtml(name)}</span>
+          <button type="button" class="chip-icon-btn" data-chip-edit="${escapeAttr(name)}" title="Rename">&#9998;</button>
+          <button type="button" class="chip-icon-btn chip-icon-danger" data-chip-delete="${escapeAttr(name)}" title="Delete">&times;</button>
+        </div>`;
+    }).join("");
   }
 
   function refreshWatchedWithFilterOptions() {
@@ -1198,14 +1280,130 @@
     }
   });
 
+  function enterChipEditMode(name) {
+    if (!canEdit()) { alert("Sign in to manage names."); return; }
+    editingChipName = name;
+    watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
+    const input = watchedWithPickerEl.querySelector(".chip-edit-input");
+    if (input) {
+      input.focus();
+      input.select();
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          watchedWithPickerEl.querySelector("[data-chip-save]").click();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          watchedWithPickerEl.querySelector("[data-chip-cancel-edit]").click();
+        }
+      });
+    }
+  }
+
+  async function deleteWatchedWithName(name) {
+    const { error } = await sb.from("watched_with_options").delete().eq("name", name);
+    if (error) {
+      alert("Could not remove this name: " + error.message);
+      return;
+    }
+    WATCHED_WITH_OPTIONS = WATCHED_WITH_OPTIONS.filter((n) => n !== name);
+    delete WATCHED_WITH_COLORS[name];
+    currentWatchedWith.delete(name);
+    if (filterWatchedWith === name) {
+      filterWatchedWith = "";
+    }
+    watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
+    refreshWatchedWithFilterOptions();
+    filterWatchedWithSelect.value = filterWatchedWith;
+    updateClearVisibility();
+    render();
+  }
+
+  async function renameWatchedWithName(oldName, newName) {
+    const { error: insertError } = await sb.from("watched_with_options").insert({ name: newName });
+    if (insertError) {
+      alert("Could not save the new name: " + insertError.message);
+      return;
+    }
+    const { error: deleteError } = await sb.from("watched_with_options").delete().eq("name", oldName);
+    if (deleteError) {
+      alert("Could not remove the old name: " + deleteError.message);
+      return;
+    }
+
+    const affected = viewings.filter((v) => (v.watchedWith || []).includes(oldName));
+    for (const v of affected) {
+      const updated = Array.from(new Set(v.watchedWith.map((n) => (n === oldName ? newName : n))));
+      v.watchedWith = updated;
+      const { error: updateError } = await sb.from("viewings").update({ watched_with: updated }).eq("id", v.id);
+      if (updateError) console.error("Could not update a ticket during rename", updateError);
+    }
+
+    WATCHED_WITH_OPTIONS = WATCHED_WITH_OPTIONS.map((n) => (n === oldName ? newName : n));
+    if (WATCHED_WITH_COLORS[oldName]) {
+      WATCHED_WITH_COLORS[newName] = WATCHED_WITH_COLORS[oldName];
+      delete WATCHED_WITH_COLORS[oldName];
+    }
+    if (currentWatchedWith.has(oldName)) {
+      currentWatchedWith.delete(oldName);
+      currentWatchedWith.add(newName);
+    }
+    if (filterWatchedWith === oldName) {
+      filterWatchedWith = newName;
+    }
+    editingChipName = null;
+    watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
+    refreshWatchedWithFilterOptions();
+    filterWatchedWithSelect.value = filterWatchedWith;
+    updateClearVisibility();
+    render();
+  }
+
   watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
   watchedWithPickerEl.addEventListener("click", (e) => {
-    const chip = e.target.closest(".chip-option");
-    if (!chip) return;
-    const name = chip.getAttribute("data-chip-value");
-    if (currentWatchedWith.has(name)) currentWatchedWith.delete(name);
-    else currentWatchedWith.add(name);
-    chip.classList.toggle("selected", currentWatchedWith.has(name));
+    const editBtn = e.target.closest("[data-chip-edit]");
+    if (editBtn) {
+      enterChipEditMode(editBtn.getAttribute("data-chip-edit"));
+      return;
+    }
+    const deleteBtn = e.target.closest("[data-chip-delete]");
+    if (deleteBtn) {
+      if (!canEdit()) { alert("Sign in to manage names."); return; }
+      const name = deleteBtn.getAttribute("data-chip-delete");
+      if (!confirm(`Remove "${name}" from the list? Existing tickets already tagged with it will keep showing it.`)) return;
+      deleteWatchedWithName(name);
+      return;
+    }
+    const saveBtn = e.target.closest("[data-chip-save]");
+    if (saveBtn) {
+      const oldName = saveBtn.getAttribute("data-chip-save");
+      const input = watchedWithPickerEl.querySelector(".chip-edit-input");
+      const newName = input ? input.value.trim() : "";
+      if (!newName || newName === oldName) {
+        editingChipName = null;
+        watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
+        return;
+      }
+      if (WATCHED_WITH_OPTIONS.some((n) => n.toLowerCase() === newName.toLowerCase() && n !== oldName)) {
+        alert(`"${newName}" already exists.`);
+        return;
+      }
+      renameWatchedWithName(oldName, newName);
+      return;
+    }
+    const cancelBtn = e.target.closest("[data-chip-cancel-edit]");
+    if (cancelBtn) {
+      editingChipName = null;
+      watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
+      return;
+    }
+    const chip = e.target.closest(".chip-option[data-chip-value]");
+    if (chip && !chip.classList.contains("chip-editing")) {
+      const name = chip.getAttribute("data-chip-value");
+      if (currentWatchedWith.has(name)) currentWatchedWith.delete(name);
+      else currentWatchedWith.add(name);
+      chip.classList.toggle("selected", currentWatchedWith.has(name));
+    }
   });
 
   function isFilterActive() {
@@ -1318,7 +1516,11 @@
 
   function editWatchedWithChipsHtml(selectedList) {
     const selectedSet = new Set(selectedList || []);
-    return WATCHED_WITH_OPTIONS.map((name) =>
+    const allNames = [...WATCHED_WITH_OPTIONS];
+    selectedSet.forEach((name) => {
+      if (!allNames.includes(name)) allNames.push(name);
+    });
+    return allNames.map((name) =>
       `<button type="button" class="chip-option ${selectedSet.has(name) ? "selected" : ""}" data-chip-value="${escapeAttr(name)}">${escapeHtml(name)}</button>`
     ).join("");
   }
@@ -1750,6 +1952,11 @@
     const topRankedRows = topRankedRowsArray(topRanked);
     topRankedStatsEl.innerHTML = sliceRows(topRankedRows, "topRanked").join("");
     updateExpandBtn(topRankedExpandBtn, "topRanked", topRankedRows.length);
+
+    const lowestRanked = [...topRanked].sort((a, b) => a.rating - b.rating || b.count - a.count || b.latestYear - a.latestYear);
+    const lowestRankedRows = topRankedRowsArray(lowestRanked);
+    lowestRankedStatsEl.innerHTML = sliceRows(lowestRankedRows, "lowestRanked").join("");
+    updateExpandBtn(lowestRankedExpandBtn, "lowestRanked", lowestRankedRows.length);
   }
 
   function render() {
@@ -1911,6 +2118,8 @@
   async function deleteViewing(id) {
     if (!canEdit()) return;
     const removed = viewings.find((v) => v.id === id);
+    if (!removed) return;
+    if (!confirm(`Delete "${removed.movie}"? This can't be undone.`)) return;
     viewings = viewings.filter((v) => v.id !== id);
     if (editingId === id) editingId = null;
     render();
@@ -2106,13 +2315,15 @@
 
   async function loadCustomWatchedWithNames() {
     try {
-      const { data, error } = await sb.from("watched_with_options").select("name");
+      const { data, error } = await sb.from("watched_with_options").select("name").order("created_at");
       if (error) throw error;
-      (data || []).forEach((row) => {
-        if (!WATCHED_WITH_OPTIONS.some((n) => n.toLowerCase() === row.name.toLowerCase())) {
-          WATCHED_WITH_OPTIONS.push(row.name);
-        }
-      });
+      if (data && data.length > 0) {
+        WATCHED_WITH_OPTIONS = data.map((row) => row.name);
+      } else if (session) {
+        const seedRows = WATCHED_WITH_OPTIONS.map((name) => ({ name }));
+        const { error: seedError } = await sb.from("watched_with_options").insert(seedRows);
+        if (seedError) console.error("Could not seed watched-with options", seedError);
+      }
       watchedWithPickerEl.innerHTML = watchedWithChipsHtml(currentWatchedWith);
       refreshWatchedWithFilterOptions();
     } catch (e) {
